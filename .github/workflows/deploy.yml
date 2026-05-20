@@ -1,0 +1,118 @@
+name: CI/CD Pipeline - Build & Deploy to AWS EC2
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: # Allow manual trigger from GitHub UI
+
+jobs:
+  build-and-deploy:
+    name: Build & Deploy AssessHub
+    runs-on: ubuntu-latest
+
+    steps:
+      # ─────────────────────────────────────────
+      # 1. Checkout source code
+      # ─────────────────────────────────────────
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      # ─────────────────────────────────────────
+      # 2. Build Spring Boot Backend
+      # ─────────────────────────────────────────
+      - name: Set up Java 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Build Spring Boot Backend JAR
+        run: |
+          cd backend
+          mvn clean package -DskipTests
+          echo "✅ Backend JAR built successfully"
+          ls -lh target/*.jar
+
+      # ─────────────────────────────────────────
+      # 3. Build React Frontend
+      # ─────────────────────────────────────────
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Build React Frontend
+        run: |
+          cd frontend
+          npm ci
+          npm run build
+          echo "✅ Frontend built successfully"
+          ls -lh dist/
+
+      # ─────────────────────────────────────────
+      # 4. Upload compiled artifacts to EC2
+      # ─────────────────────────────────────────
+      - name: Upload Backend JAR to EC2
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          source: "backend/target/platform-0.0.1-SNAPSHOT.jar"
+          target: "/tmp/assesshub-deploy/"
+          strip_components: 2
+
+      - name: Upload Frontend Build to EC2
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          source: "frontend/dist/"
+          target: "/tmp/assesshub-deploy/dist/"
+          strip_components: 2
+
+      # ─────────────────────────────────────────
+      # 5. SSH into EC2 and deploy
+      # ─────────────────────────────────────────
+      - name: Deploy to EC2 & Restart Services
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            echo "=== 🚀 Starting Deployment on EC2 ==="
+
+            # Stop the backend service before swapping the JAR
+            sudo systemctl stop assesshub-backend
+            echo "✅ Backend service stopped"
+
+            # Replace the backend JAR
+            sudo cp /tmp/assesshub-deploy/platform-0.0.1-SNAPSHOT.jar \
+                    /opt/assesshub/backend/target/platform-0.0.1-SNAPSHOT.jar
+            echo "✅ Backend JAR updated"
+
+            # Replace frontend static files
+            sudo rsync -a --delete /tmp/assesshub-deploy/dist/ /var/www/assesshub/
+            sudo chown -R www-data:www-data /var/www/assesshub
+            echo "✅ Frontend static files updated"
+
+            # Restart backend service
+            sudo systemctl start assesshub-backend
+            echo "✅ Backend service restarted"
+
+            # Reload Nginx to serve new frontend
+            sudo systemctl reload nginx
+            echo "✅ Nginx reloaded"
+
+            # Clean up temp files
+            rm -rf /tmp/assesshub-deploy
+            echo "✅ Temp files cleaned up"
+
+            echo ""
+            echo "=== ✅ DEPLOYMENT COMPLETED SUCCESSFULLY ==="
+            sudo systemctl status assesshub-backend --no-pager
