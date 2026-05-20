@@ -18,17 +18,15 @@ jobs:
         uses: actions/checkout@v4
 
       # ─────────────────────────────────────────
-      # 2. Setup SSH Agent (handles key format reliably)
+      # 2. Setup SSH Key (stored as base64 in secret)
       # ─────────────────────────────────────────
-      - name: Setup SSH Agent
-        uses: webfactory/ssh-agent@v0.9.0
-        with:
-          ssh-private-key: ${{ secrets.EC2_SSH_KEY }}
-
-      - name: Add EC2 to Known Hosts
+      - name: Setup SSH Key
         run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.EC2_SSH_KEY }}" | base64 -d > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
-          echo "EC2 host added to known_hosts"
+          echo "SSH key configured successfully"
 
       # ─────────────────────────────────────────
       # 3. Build Spring Boot Backend
@@ -70,16 +68,16 @@ jobs:
       # ─────────────────────────────────────────
       - name: Upload Backend JAR to EC2
         run: |
-          scp -o StrictHostKeyChecking=no \
+          scp -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
             backend/target/platform-0.0.1-SNAPSHOT.jar \
             ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}:/tmp/platform-0.0.1-SNAPSHOT.jar
           echo "Backend JAR uploaded"
 
       - name: Upload Frontend Build to EC2
         run: |
-          ssh -o StrictHostKeyChecking=no \
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
             ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} "mkdir -p /tmp/assesshub-dist"
-          scp -o StrictHostKeyChecking=no -r \
+          scp -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no -r \
             frontend/dist/. \
             ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}:/tmp/assesshub-dist/
           echo "Frontend build uploaded"
@@ -89,7 +87,7 @@ jobs:
       # ─────────────────────────────────────────
       - name: Deploy to EC2 and Restart Services
         run: |
-          ssh -o StrictHostKeyChecking=no \
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
             ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} bash -s << 'ENDSSH'
           echo "=== Starting Deployment on EC2 ==="
 
@@ -112,7 +110,6 @@ jobs:
 
           rm -f /tmp/platform-0.0.1-SNAPSHOT.jar
           rm -rf /tmp/assesshub-dist
-          echo "Temp files cleaned up"
 
           echo "=== DEPLOYMENT COMPLETED SUCCESSFULLY ==="
           sudo systemctl status assesshub-backend --no-pager
