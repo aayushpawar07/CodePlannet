@@ -1,0 +1,11 @@
+backend/src/main/resources/application-local.yml
+
+# Build output
+backend/target/
+frontend/dist/
+frontend/node_modules/
+
+# Local secrets
+.env
+*.env
+!deployment/backend.env.example

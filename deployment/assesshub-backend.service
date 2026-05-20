@@ -1,0 +1,15 @@
+[Unit]
+Description=AssessHub Spring Boot Backend
+After=network.target mysql.service
+
+[Service]
+User=ubuntu
+WorkingDirectory=/opt/assesshub/backend
+EnvironmentFile=/etc/assesshub/backend.env
+ExecStart=/usr/bin/java -jar /opt/assesshub/backend/target/platform-0.0.1-SNAPSHOT.jar
+Restart=always
+RestartSec=10
+SuccessExitStatus=143
+
+[Install]
+WantedBy=multi-user.target
