@@ -34,6 +34,7 @@ public class TestService {
     private final AnswerRepository answerRepository;
     private final UserRepository userRepository;
 
+    @Transactional(readOnly = true)
     public List<TestResponse> getAssignedTests() {
         CustomUserDetails userDetails = getCurrentUser();
         User user = userRepository.findById(userDetails.getId())
@@ -48,6 +49,7 @@ public class TestService {
         }).collect(Collectors.toList());
     }
 
+    @Transactional(readOnly = true)
     public TestResponse getTestById(Long testId) {
         CustomUserDetails userDetails = getCurrentUser();
         Test test = testRepository.findById(testId)
@@ -180,6 +182,7 @@ public class TestService {
         return mapToSubmissionResponse(submission, false);
     }
 
+    @Transactional(readOnly = true)
     public List<SubmissionResponse> getMyResults() {
         CustomUserDetails userDetails = getCurrentUser();
         List<Submission> submissions = submissionRepository.findByUserId(userDetails.getId());
