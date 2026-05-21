@@ -107,6 +107,7 @@ public class AdminService {
         return mapToTestResponseAdmin(test);
     }
 
+    @Transactional(readOnly = true)
     public List<TestResponse> getAllTests() {
         User currentUser = getCurrentUserEntity();
         List<Test> tests;
@@ -123,6 +124,7 @@ public class AdminService {
                 .collect(Collectors.toList());
     }
 
+    @Transactional(readOnly = true)
     public List<SubmissionResponse> getTestSubmissions(Long testId) {
         testRepository.findById(testId)
                 .orElseThrow(() -> new ResourceNotFoundException("Test not found"));
@@ -201,6 +203,7 @@ public class AdminService {
         return mapToUserResponse(user);
     }
 
+    @Transactional(readOnly = true)
     public List<UserResponse> getAllUsers() {
         User currentUser = getCurrentUserEntity();
         List<User> users;
@@ -217,6 +220,7 @@ public class AdminService {
                 .collect(Collectors.toList());
     }
 
+    @Transactional(readOnly = true)
     public List<TeamResponse> getAllTeams() {
         return teamRepository.findAll().stream()
                 .map(t -> TeamResponse.builder()
@@ -336,6 +340,7 @@ public class AdminService {
         }
     }
 
+    @Transactional(readOnly = true)
     public byte[] generateScoresCSV(Long testId) {
         Test test = testRepository.findById(testId)
                 .orElseThrow(() -> new ResourceNotFoundException("Test not found"));
